@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'database/database_helper.dart';
+import 'subjectdetails.dart';
 
 void main() {
-  
   runApp(const MyApp());
 }
 
@@ -36,84 +36,285 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadBatches() async {
     final batches = await DatabaseHelper.instance.getAllBatches();
+
+    // 🔹 Auto-fill lectures for each batch
+    for (var batch in batches) {
+      await DatabaseHelper.instance.autoFillLectures(batch['id']);
+    }
+
+    // reload batches again (in case new lectures updated lastDate etc.)
+    final refreshed = await DatabaseHelper.instance.getAllBatches();
+
     setState(() {
-      _batches = batches;
+      _batches = refreshed;
     });
+  }
+
+  double calculateAttendancePercent(List<Map<String, dynamic>> lectures) {
+    if (lectures.isEmpty) return 0.0;
+    int presentCount = lectures.where((l) => l['status'] == 'present').length;
+    return (presentCount / lectures.length) * 100;
   }
 
   @override
   Widget build(BuildContext context) {
-    final drawerWidth = MediaQuery.of(context).size.width * 0.8;
-
     return Scaffold(
-      appBar: AppBar(title: const Text('My App')),
+      appBar: AppBar(title: const Text('Attendance Dashboard')),
       drawer: Drawer(
-        width: drawerWidth,
-        child: SafeArea(
-          child: Column(
-            children: [
-              const DrawerHeader(
-                child: Text('Menu', style: TextStyle(fontSize: 24)),
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            DrawerHeader(
+              decoration: BoxDecoration(color: Colors.blue),
+              child: Text(
+                'Menu',
+                style: TextStyle(color: Colors.white, fontSize: 24),
               ),
-              ListTile(
-                leading: const Icon(Icons.punch_clock_rounded),
-                title: const Text('Add Schedule'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const AddScheduleForm()),
-                  );
-                  _loadBatches(); // refresh after adding new timetable
-                },
-              ),
-              const Divider(),
-              const Text("Saved Timetables", style: TextStyle(fontSize: 18)),
-              Expanded(
-                child: _batches.isEmpty
-                    ? const Center(child: Text("No timetables added yet"))
-                    : ListView.builder(
-                        itemCount: _batches.length,
-                        itemBuilder: (context, index) {
-                          final batch = _batches[index];
-                          return ListTile(
-                            leading: const Icon(Icons.book),
-                            title: Text(
-                                "${batch['name']} - ${batch['className']} (${batch['startDate']})"),
-                            onTap: () async {
-                              Navigator.pop(context);
-                              final deleted = await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => BatchDetailsPage(batch: batch),
-                                ),
-                              );
-                              if (deleted == true) {
-                                _loadBatches();
-                              }
-                            },
-                          );
-                        },
+            ),
+            ListTile(
+              title: Text("Add Schedule"),
+              onTap: () async {
+                Navigator.pop(context); // close drawer
+                final added = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => AddScheduleForm()),
+                );
+                // if a new batch was added, reload batches
+                if (added == true) {
+                  _loadBatches();
+                }
+              },
+            ),
+            const Divider(),
+            const Padding(
+              padding: EdgeInsets.all(12.0),
+              child: Text("Saved Timetables", style: TextStyle(fontSize: 18)),
+            ),
+
+            // ✅ Instead of Expanded, just build the list normally
+            if (_batches.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: Text("No timetables added yet"),
+              )
+            else
+              ..._batches.map((batch) {
+                return ListTile(
+                  leading: const Icon(Icons.book),
+                  title: Text(
+                    "${batch['name']} - ${batch['className']} (${batch['startDate']})",
+                  ),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    final deleted = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => BatchDetailsPage(batch: batch),
                       ),
+                    );
+                    if (deleted == true) {
+                      _loadBatches();
+                    }
+                  },
+                );
+              }).toList(),
+          ],
+        ),
+      ),
+
+      body: _batches.isEmpty
+          ? const Center(child: Text("No semesters added yet"))
+          : ListView.builder(
+              itemCount: _batches.length,
+              itemBuilder: (context, index) {
+                final batch = _batches[index];
+                return Card(
+                  margin: const EdgeInsets.all(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "${batch['name']} - ${batch['className']}",
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+
+                        // Fetch subjects
+                        FutureBuilder<List<Map<String, dynamic>>>(
+                          future: DatabaseHelper.instance.getSubjectsForBatch(
+                            batch['id'],
+                          ),
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData) {
+                              return const Center(
+                                child: CircularProgressIndicator(),
+                              );
+                            }
+                            final subjects = snapshot.data!;
+                            if (subjects.isEmpty) {
+                              return const Text("No subjects added yet");
+                            }
+
+                            // Calculate average across subjects
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                FutureBuilder<List<double>>(
+                                  future: _calculateSubjectPercents(
+                                    batch['id'],
+                                    subjects,
+                                  ),
+                                  builder: (context, snap) {
+                                    if (!snap.hasData) return const SizedBox();
+                                    final subjectPercents = snap.data!;
+                                    final avg = subjectPercents.isEmpty
+                                        ? 0.0
+                                        : subjectPercents.reduce(
+                                                (a, b) => a + b,
+                                              ) /
+                                              subjectPercents.length;
+
+                                    return Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 8.0,
+                                      ),
+                                      child: Text(
+                                        "Average Attendance: ${avg.toStringAsFixed(1)}%",
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+
+                                // Each subject card
+                                ...subjects.map((sub) {
+                                  return FutureBuilder<
+                                    List<Map<String, dynamic>>
+                                  >(
+                                    future: DatabaseHelper.instance
+                                        .getLecturesForSubject(
+                                          batch['id'],
+                                          sub['name'],
+                                        ),
+                                    builder: (context, snap) {
+                                      if (!snap.hasData)
+                                        return const SizedBox();
+                                      final lectures = snap.data!;
+                                      final percent =
+                                          calculateAttendancePercent(lectures);
+
+                                      return ListTile(
+                                        title: Text(sub['name']),
+                                        subtitle: Text(
+                                          "Attendance: ${percent.toStringAsFixed(1)}%",
+                                        ),
+                                        trailing: ElevatedButton(
+                                          onPressed: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    SubjectDetailsPage(
+                                                      batchId: batch['id'],
+                                                      subjectName: sub['name'],
+                                                    ),
+                                              ),
+                                            );
+                                          },
+                                          child: const Text("Details"),
+                                        ),
+                                      );
+                                    },
+                                  );
+                                }).toList(),
+                              ],
+                            );
+                          },
+                        ),
+
+                        const Divider(),
+
+                        // Semester buttons
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                              ),
+                              onPressed: () async {
+                                bool confirmed = await _confirmStopSemester();
+                                if (confirmed) {
+                                  await DatabaseHelper.instance.stopSemester(
+                                    batch['id'],
+                                  );
+                                  _loadBatches();
+                                }
+                              },
+                              child: const Text("Stop Auto-Fill"),
+                            ),
+                            const SizedBox(width: 10),
+                            ElevatedButton(
+                              onPressed: () {
+                                // Make changes functionality placeholder
+                              },
+                              child: const Text("Make Changes"),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+    );
+  }
+
+  // helper to compute each subject's percentage
+  Future<List<double>> _calculateSubjectPercents(
+    int batchId,
+    List<Map<String, dynamic>> subjects,
+  ) async {
+    List<double> percents = [];
+    for (var sub in subjects) {
+      final lectures = await DatabaseHelper.instance.getLecturesForSubject(
+        batchId,
+        sub['name'],
+      );
+      percents.add(calculateAttendancePercent(lectures));
+    }
+    return percents;
+  }
+
+  Future<bool> _confirmStopSemester() async {
+    return await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text("Stop Semester"),
+            content: const Text(
+              "Are you sure you want to stop auto-fill for this semester?",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text("Cancel"),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text("Confirm"),
               ),
             ],
           ),
-        ),
-      ),
-      body: ListTile(
-        leading: const Icon(Icons.delete_forever),
-        title: const Text('Reset Database'),
-        onTap: () async {
-          Navigator.pop(context); // close drawer
-          await DatabaseHelper.instance.resetDatabase();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Database reset successfully!")),
-          );
-          _loadBatches(); // reload batches after reset
-        },
-      ),
-
-    );
+        ) ??
+        false;
   }
 }
 
@@ -161,8 +362,9 @@ class _AddScheduleFormState extends State<AddScheduleForm> {
 
   void confirm() {
     if (_selectedDate == null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text("Please select a start date")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please select a start date")),
+      );
       return;
     }
     Navigator.push(
@@ -175,7 +377,12 @@ class _AddScheduleFormState extends State<AddScheduleForm> {
           subjectsByDay: subjectsByDay,
         ),
       ),
-    );
+    ).then((added) {
+      if (added == true) {
+        Navigator.pop(context, true); // return true to HomePage
+      }
+    });
+
   }
 
   @override
@@ -205,9 +412,11 @@ class _AddScheduleFormState extends State<AddScheduleForm> {
             const SizedBox(height: 20),
             TextButton(
               onPressed: pickStartDate,
-              child: Text(_selectedDate == null
-                  ? "Select Start Date"
-                  : "Start Date: ${_selectedDate!.toLocal().toIso8601String().split('T')[0]}"),
+              child: Text(
+                _selectedDate == null
+                    ? "Select Start Date"
+                    : "Start Date: ${_selectedDate!.toLocal().toIso8601String().split('T')[0]}",
+              ),
             ),
             const SizedBox(height: 20),
             ...subjectsByDay.keys.map((day) {
@@ -253,7 +462,10 @@ class _AddScheduleFormState extends State<AddScheduleForm> {
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 40,
+                    vertical: 16,
+                  ),
                 ),
                 onPressed: confirm,
                 child: const Text("Confirm"),
@@ -290,12 +502,20 @@ class PreviewSchedule extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Name: $name", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text(
+              "Name: $name",
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 10),
-            Text("Class: $className", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text(
+              "Class: $className",
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 10),
-            Text("Start Date: ${startDate.toLocal().toIso8601String().split('T')[0]}",
-                style: const TextStyle(fontSize: 18)),
+            Text(
+              "Start Date: ${startDate.toLocal().toIso8601String().split('T')[0]}",
+              style: const TextStyle(fontSize: 18),
+            ),
             const SizedBox(height: 20),
             ...subjectsByDay.keys.map((day) {
               final subjects = subjectsByDay[day]!;
@@ -304,7 +524,13 @@ class PreviewSchedule extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(day, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                    Text(
+                      day,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     if (subjects.isEmpty) const Text("No subjects"),
                     ...subjects.map((c) => Text("- ${c.text}")).toList(),
                   ],
@@ -319,12 +545,16 @@ class PreviewSchedule extends StatelessWidget {
                   // Validate fields first
                   if (name.trim().isEmpty || className.trim().isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Name and Class cannot be empty")),
+                      const SnackBar(
+                        content: Text("Name and Class cannot be empty"),
+                      ),
                     );
                     return;
                   }
 
-                  bool hasSubjects = subjectsByDay.values.any((list) => list.any((c) => c.text.trim().isNotEmpty));
+                  bool hasSubjects = subjectsByDay.values.any(
+                    (list) => list.any((c) => c.text.trim().isNotEmpty),
+                  );
                   if (!hasSubjects) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text("Add at least one subject")),
@@ -334,7 +564,9 @@ class PreviewSchedule extends StatelessWidget {
 
                   if (startDate == null) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Start date cannot be empty")),
+                      const SnackBar(
+                        content: Text("Start date cannot be empty"),
+                      ),
                     );
                     return;
                   }
@@ -360,11 +592,11 @@ class PreviewSchedule extends StatelessWidget {
                     }
 
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Schedule saved successfully!")),
+                      const SnackBar(
+                        content: Text("Schedule saved successfully!"),
+                      ),
                     );
-
-                    Navigator.pop(context); // Go back after saving
-                    Navigator.pop(context); // Go back after saving
+                    Navigator.pop(context,true); // Go back after saving
                   } catch (e) {
                     // Show any DB error
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -375,7 +607,6 @@ class PreviewSchedule extends StatelessWidget {
                 child: const Text("Save"),
               ),
             ),
-
           ],
         ),
       ),
@@ -393,12 +624,22 @@ class BatchDetailsPage extends StatefulWidget {
 }
 
 class _BatchDetailsPageState extends State<BatchDetailsPage> {
-  late Future<List<Map<String, dynamic>>> subjectsFuture;
+  late Future<List<Map<String, dynamic>>>? subjectsFuture;
 
   @override
   void initState() {
     super.initState();
-    subjectsFuture = DatabaseHelper.instance.getSubjectsForBatch(widget.batch['id']);
+
+
+    // First auto-fill lectures for this batch
+    DatabaseHelper.instance.autoFillLectures(widget.batch['id']).then((_) {
+      // After auto-filling, load subjects
+      setState(() {
+        subjectsFuture = DatabaseHelper.instance.getSubjectsForBatch(
+          widget.batch['id'],
+        );
+      });
+    });
   }
 
   void confirmDelete() async {
@@ -407,9 +648,13 @@ class _BatchDetailsPageState extends State<BatchDetailsPage> {
       builder: (ctx) => AlertDialog(
         title: const Text("Delete Schedule"),
         content: const Text(
-            "Are you sure you want to delete this timetable? This action cannot be undone."),
+          "Are you sure you want to delete this timetable? This action cannot be undone.",
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Cancel"),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
@@ -430,21 +675,21 @@ class _BatchDetailsPageState extends State<BatchDetailsPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-            "${widget.batch['name']} - ${widget.batch['className']} (${widget.batch['startDate']})"),
+          "${widget.batch['name']} - ${widget.batch['className']} (${widget.batch['startDate']})",
+        ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.delete),
-            onPressed: confirmDelete,
-          ),
+          IconButton(icon: const Icon(Icons.delete), onPressed: confirmDelete),
         ],
       ),
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: subjectsFuture,
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (!snapshot.hasData)
+            return const Center(child: CircularProgressIndicator());
           final subjects = snapshot.data!;
 
-          if (subjects.isEmpty) return const Center(child: Text("No subjects added"));
+          if (subjects.isEmpty)
+            return const Center(child: Text("No subjects added"));
 
           // group by day
           final Map<String, List<String>> subjectsByDay = {};
@@ -463,8 +708,13 @@ class _BatchDetailsPageState extends State<BatchDetailsPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(entry.key,
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text(
+                        entry.key,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       ...entry.value.map((sub) => Text("- $sub")).toList(),
                     ],
                   ),
