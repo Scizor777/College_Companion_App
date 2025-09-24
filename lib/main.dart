@@ -102,7 +102,11 @@ class _HomePageState extends State<HomePage> {
               decoration: const BoxDecoration(color: Colors.indigo),
               child: const Text(
                 'Menu',
-                style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             ListTile(
@@ -120,7 +124,8 @@ class _HomePageState extends State<HomePage> {
             const Divider(),
             const Padding(
               padding: EdgeInsets.all(12.0),
-              child: Text("Saved Timetables", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+              child: Text("Saved Timetables",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
             ),
             if (_batches.isEmpty)
               const Padding(
@@ -157,9 +162,9 @@ class _HomePageState extends State<HomePage> {
               itemBuilder: (context, index) {
                 final batch = _batches[index];
                 return Card(
-                  elevation: 4,
+                  elevation: 5,
                   margin: const EdgeInsets.symmetric(vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Column(
@@ -168,9 +173,11 @@ class _HomePageState extends State<HomePage> {
                         Text(
                           "${batch['name']} - ${batch['className']}",
                           style: const TextStyle(
-                              fontSize: 20, fontWeight: FontWeight.bold, color: Colors.indigo),
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.indigo),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 16),
                         FutureBuilder<List<Map<String, dynamic>>>(
                           future: DatabaseHelper.instance.getSubjectsForBatch(batch['id']),
                           builder: (context, snapshot) {
@@ -216,48 +223,63 @@ class _HomePageState extends State<HomePage> {
                                         padding: const EdgeInsets.all(12),
                                         decoration: BoxDecoration(
                                           color: Colors.indigo[50],
-                                          borderRadius: BorderRadius.circular(10),
+                                          borderRadius: BorderRadius.circular(12),
                                           boxShadow: [
                                             BoxShadow(
                                               color: Colors.grey.withOpacity(0.2),
                                               spreadRadius: 2,
-                                              blurRadius: 4,
-                                              offset: const Offset(2, 2),
+                                              blurRadius: 5,
+                                              offset: const Offset(2, 3),
                                             )
                                           ],
                                         ),
                                         child: Row(
                                           children: [
-                                            // Circular Percentage Indicator
                                             Stack(
                                               alignment: Alignment.center,
                                               children: [
                                                 SizedBox(
                                                   width: 50,
                                                   height: 50,
-                                                  child: CircularProgressIndicator(
-                                                    value: percent / 100,
-                                                    backgroundColor: Colors.grey[300],
-                                                    valueColor: AlwaysStoppedAnimation<Color>(percentColor),
-                                                    strokeWidth: 6,
+                                                  child: TweenAnimationBuilder<double>(
+                                                    tween: Tween<double>(
+                                                        begin: 0, end: percent / 100),
+                                                    duration:
+                                                        const Duration(milliseconds: 1000),
+                                                    builder: (context, value, _) =>
+                                                        CircularProgressIndicator(
+                                                      value: value,
+                                                      backgroundColor: Colors.grey[300],
+                                                      valueColor:
+                                                          AlwaysStoppedAnimation<Color>(
+                                                              percentColor),
+                                                      strokeWidth: 6,
+                                                    ),
                                                   ),
                                                 ),
-                                                Text(
-                                                  "${percent.toStringAsFixed(0)}%",
-                                                  style: const TextStyle(
-                                                      fontSize: 12, fontWeight: FontWeight.bold),
+                                                TweenAnimationBuilder<double>(
+                                                  tween: Tween<double>(begin: 0, end: percent),
+                                                  duration:
+                                                      const Duration(milliseconds: 1000),
+                                                  builder: (context, value, _) => Text(
+                                                    "${value.toInt()}%",
+                                                    style: const TextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight: FontWeight.bold),
+                                                  ),
                                                 ),
                                               ],
                                             ),
                                             const SizedBox(width: 16),
-                                            // Subject Name and some info
                                             Expanded(
                                               child: Text(
                                                 sub['name'],
                                                 style: const TextStyle(
-                                                    fontSize: 16, fontWeight: FontWeight.w600),
+                                                    fontSize: 17,
+                                                    fontWeight: FontWeight.w600),
                                               ),
                                             ),
+                                            const Icon(Icons.arrow_forward_ios, size: 18),
                                           ],
                                         ),
                                       ),
@@ -268,12 +290,13 @@ class _HomePageState extends State<HomePage> {
                             );
                           },
                         ),
-                        const Divider(height: 20),
+                        const Divider(height: 30),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
                             ElevatedButton(
-                              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                              style:
+                                  ElevatedButton.styleFrom(backgroundColor: Colors.red),
                               onPressed: () async {
                                 bool confirmed = await _confirmStopSemester();
                                 if (confirmed) {
@@ -283,13 +306,14 @@ class _HomePageState extends State<HomePage> {
                               },
                               child: const Text("Stop Auto-Fill"),
                             ),
-                            const SizedBox(width: 10),
+                            const SizedBox(width: 12),
                             ElevatedButton(
                               onPressed: () async {
                                 final updated = await Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) => ModifySchedulePage(batchId: batch['id']),
+                                    builder: (_) =>
+                                        ModifySchedulePage(batchId: batch['id']),
                                   ),
                                 );
                                 if (updated == true) _loadBatches();
@@ -310,14 +334,16 @@ class _HomePageState extends State<HomePage> {
 
 
 
-// ---------------- Add Schedule Form ----------------
+
+
 class AddScheduleForm extends StatefulWidget {
   const AddScheduleForm({super.key});
   @override
   State<AddScheduleForm> createState() => _AddScheduleFormState();
 }
 
-class _AddScheduleFormState extends State<AddScheduleForm> {
+class _AddScheduleFormState extends State<AddScheduleForm>
+    with SingleTickerProviderStateMixin {
   final TextEditingController nameController = TextEditingController();
   final TextEditingController classController = TextEditingController();
   DateTime? _selectedDate;
@@ -332,10 +358,28 @@ class _AddScheduleFormState extends State<AddScheduleForm> {
     'Sunday': [],
   };
 
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   void addSubjectField(String day) {
     setState(() {
       subjectsByDay[day]!.add(TextEditingController());
     });
+    _controller.forward(from: 0);
   }
 
   void pickStartDate() async {
@@ -374,13 +418,15 @@ class _AddScheduleFormState extends State<AddScheduleForm> {
         Navigator.pop(context, true); // return true to HomePage
       }
     });
-
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Add Schedule")),
+      appBar: AppBar(
+        title: const Text("Add Schedule"),
+        backgroundColor: Colors.indigo[700],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -388,79 +434,94 @@ class _AddScheduleFormState extends State<AddScheduleForm> {
           children: [
             TextField(
               controller: nameController,
-              decoration: const InputDecoration(
-                labelText: "Name",
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: "Schedule Name",
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                prefixIcon: const Icon(Icons.title),
               ),
             ),
             const SizedBox(height: 20),
             TextField(
               controller: classController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: "Class / Semester",
-                border: OutlineInputBorder(),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                prefixIcon: const Icon(Icons.school),
               ),
             ),
             const SizedBox(height: 20),
-            TextButton(
+            TextButton.icon(
               onPressed: pickStartDate,
-              child: Text(
+              icon: const Icon(Icons.calendar_today),
+              label: Text(
                 _selectedDate == null
                     ? "Select Start Date"
                     : "Start Date: ${_selectedDate!.toLocal().toIso8601String().split('T')[0]}",
+                style: const TextStyle(fontSize: 16),
               ),
             ),
             const SizedBox(height: 20),
             ...subjectsByDay.keys.map((day) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(day, style: const TextStyle(fontSize: 18)),
-                        IconButton(
-                          icon: const Icon(Icons.add),
-                          onPressed: () => addSubjectField(day),
-                        ),
-                      ],
-                    ),
-                    Column(
-                      children: subjectsByDay[day]!
-                          .asMap()
-                          .entries
-                          .map(
-                            (entry) => Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 4),
-                              child: TextField(
-                                controller: entry.value,
-                                decoration: InputDecoration(
-                                  labelText: "Subject ${entry.key + 1}",
-                                  border: const OutlineInputBorder(),
-                                ),
+              final controllers = subjectsByDay[day]!;
+              return Card(
+                elevation: 3,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(day,
+                              style: const TextStyle(
+                                  fontSize: 20, fontWeight: FontWeight.bold, color: Colors.indigo)),
+                          IconButton(
+                            icon: const Icon(Icons.add, color: Colors.green),
+                            onPressed: () => addSubjectField(day),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      ...controllers.asMap().entries.map((entry) {
+                        final i = entry.key;
+                        final controller = entry.value;
+                        return FadeTransition(
+                          opacity: _controller,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            child: TextField(
+                              controller: controller,
+                              decoration: InputDecoration(
+                                labelText: "Subject ${i + 1}",
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                prefixIcon: const Icon(Icons.book),
                               ),
                             ),
-                          )
-                          .toList(),
-                    ),
-                  ],
+                          ),
+                        );
+                      }).toList(),
+                    ],
+                  ),
                 ),
               );
-            }),
+            }).toList(),
             const SizedBox(height: 30),
             Center(
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 40,
-                    vertical: 16,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 16),
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 onPressed: confirm,
-                child: const Text("Confirm"),
+                child: const Text(
+                  "Confirm",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
               ),
             ),
           ],
@@ -470,7 +531,7 @@ class _AddScheduleFormState extends State<AddScheduleForm> {
   }
 }
 
-// ---------------- Preview Schedule ----------------
+
 class PreviewSchedule extends StatelessWidget {
   final String name;
   final String className;
@@ -488,58 +549,123 @@ class PreviewSchedule extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Preview Schedule")),
+      appBar: AppBar(
+        title: const Text("Preview Schedule"),
+        backgroundColor: Colors.indigo[700],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              "Name: $name",
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              "Class: $className",
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              "Start Date: ${startDate.toLocal().toIso8601String().split('T')[0]}",
-              style: const TextStyle(fontSize: 18),
-            ),
-            const SizedBox(height: 20),
-            ...subjectsByDay.keys.map((day) {
-              final subjects = subjectsByDay[day]!;
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
+            // Header Info
+            Card(
+              elevation: 4,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      day,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      "Schedule Name: $name",
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                     ),
-                    if (subjects.isEmpty) const Text("No subjects"),
-                    ...subjects.map((c) => Text("- ${c.text}")).toList(),
+                    const SizedBox(height: 8),
+                    Text(
+                      "Class / Semester: $className",
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "Start Date: ${startDate.toLocal().toIso8601String().split('T')[0]}",
+                      style: const TextStyle(fontSize: 16),
+                    ),
                   ],
                 ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Subjects per day
+            ...subjectsByDay.entries.map((entry) {
+              final day = entry.key;
+              final subjects = entry.value;
+
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 500),
+                curve: Curves.easeInOut,
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                child: Card(
+                  elevation: 3,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.calendar_today, color: Colors.indigo),
+                            const SizedBox(width: 8),
+                            Text(
+                              day,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.indigo,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        if (subjects.isEmpty)
+                          const Text("No subjects added",
+                              style: TextStyle(fontSize: 16, fontStyle: FontStyle.italic)),
+                        ...subjects.map((c) => Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.book, size: 18, color: Colors.grey),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      c.text,
+                                      style: const TextStyle(fontSize: 16),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )),
+                      ],
+                    ),
+                  ),
+                ),
               );
-            }),
-            const SizedBox(height: 20),
+            }).toList(),
+
+            const SizedBox(height: 24),
+
+            // Save Button
             Center(
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 4,
+                ),
+                icon: const Icon(Icons.save),
+                label: const Text(
+                  "Save Schedule",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 onPressed: () async {
-                  // Validate fields first
                   if (name.trim().isEmpty || className.trim().isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("Name and Class cannot be empty"),
-                      ),
+                      const SnackBar(content: Text("Name and Class cannot be empty")),
                     );
                     return;
                   }
@@ -554,26 +680,15 @@ class PreviewSchedule extends StatelessWidget {
                     return;
                   }
 
-                  if (startDate == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("Start date cannot be empty"),
-                      ),
-                    );
-                    return;
-                  }
-
                   try {
                     final db = DatabaseHelper.instance;
 
-                    // Insert batch
                     int batchId = await db.insertBatch(
                       name.trim(),
                       className.trim(),
                       startDate.toIso8601String().split('T')[0],
                     );
 
-                    // Insert subjects
                     for (var entry in subjectsByDay.entries) {
                       for (var controller in entry.value) {
                         final text = controller.text.trim();
@@ -584,21 +699,18 @@ class PreviewSchedule extends StatelessWidget {
                     }
 
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("Schedule saved successfully!"),
-                      ),
+                      const SnackBar(content: Text("Schedule saved successfully!")),
                     );
-                    Navigator.pop(context,true); // Go back after saving
+                    Navigator.pop(context, true);
                   } catch (e) {
-                    // Show any DB error
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text("Error saving schedule: $e")),
                     );
                   }
                 },
-                child: const Text("Save"),
               ),
             ),
+            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -606,7 +718,6 @@ class PreviewSchedule extends StatelessWidget {
   }
 }
 
-// ---------------- Batch Details Page ----------------
 class BatchDetailsPage extends StatefulWidget {
   final Map<String, dynamic> batch;
   const BatchDetailsPage({super.key, required this.batch});
@@ -615,23 +726,34 @@ class BatchDetailsPage extends StatefulWidget {
   State<BatchDetailsPage> createState() => _BatchDetailsPageState();
 }
 
-class _BatchDetailsPageState extends State<BatchDetailsPage> {
+class _BatchDetailsPageState extends State<BatchDetailsPage>
+    with SingleTickerProviderStateMixin {
   late Future<List<Map<String, dynamic>>>? subjectsFuture;
+  late AnimationController _controller;
 
   @override
   void initState() {
     super.initState();
 
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
 
     // First auto-fill lectures for this batch
     DatabaseHelper.instance.autoFillLectures(widget.batch['id']).then((_) {
       // After auto-filling, load subjects
       setState(() {
-        subjectsFuture = DatabaseHelper.instance.getSubjectsForBatch(
-          widget.batch['id'],
-        );
+        subjectsFuture =
+            DatabaseHelper.instance.getSubjectsForBatch(widget.batch['id']);
       });
     });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   void confirmDelete() async {
@@ -672,16 +794,19 @@ class _BatchDetailsPageState extends State<BatchDetailsPage> {
         actions: [
           IconButton(icon: const Icon(Icons.delete), onPressed: confirmDelete),
         ],
+        backgroundColor: Colors.indigo[700],
       ),
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: subjectsFuture,
         builder: (context, snapshot) {
-          if (!snapshot.hasData)
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
+          }
           final subjects = snapshot.data!;
 
-          if (subjects.isEmpty)
+          if (subjects.isEmpty) {
             return const Center(child: Text("No subjects added"));
+          }
 
           // group by day
           final Map<String, List<String>> subjectsByDay = {};
@@ -690,32 +815,67 @@ class _BatchDetailsPageState extends State<BatchDetailsPage> {
             subjectsByDay[s['dayOfWeek']]!.add(s['name']);
           }
 
-          return ListView(
+          final days = subjectsByDay.entries.toList();
+
+          return ListView.builder(
             padding: const EdgeInsets.all(16),
-            children: subjectsByDay.entries.map((entry) {
-              return Card(
-                margin: const EdgeInsets.symmetric(vertical: 8),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        entry.key,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+            itemCount: days.length,
+            itemBuilder: (context, index) {
+              final entry = days[index];
+              final animation = Tween<Offset>(
+                begin: const Offset(0, 0.3),
+                end: Offset.zero,
+              ).animate(
+                  CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+
+              _controller.forward();
+
+              return FadeTransition(
+                opacity: _controller,
+                child: SlideTransition(
+                  position: animation,
+                  child: Card(
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
+                    elevation: 4,
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            entry.key,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.indigo,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          ...entry.value.map(
+                            (sub) => Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4.0),
+                              child: Text(
+                                "- $sub",
+                                style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.black87),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      ...entry.value.map((sub) => Text("- $sub")).toList(),
-                    ],
+                    ),
                   ),
                 ),
               );
-            }).toList(),
+            },
           );
         },
       ),
     );
   }
 }
+

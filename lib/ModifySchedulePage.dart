@@ -16,11 +16,9 @@ class _ModifySchedulePageState extends State<ModifySchedulePage> {
   List<Map<String, dynamic>> subjects = [];
   List<Map<String, dynamic>> lecturesForDate = [];
 
-  // selections — now using lecture IDs (unique)
-  final Set<int> selectedLectureIds = {}; // for Absent/Present/Canceled
-  String?
-  switchFromSubject; // lecture to cancel in Lecture Switch (subject name)
-  String? switchToSubject; // lecture to add in Lecture Switch (subject name)
+  final Set<int> selectedLectureIds = {};
+  String? switchFromSubject;
+  String? switchToSubject;
   String? extraLectureSubject;
 
   @override
@@ -30,9 +28,7 @@ class _ModifySchedulePageState extends State<ModifySchedulePage> {
   }
 
   Future<void> _loadSubjects() async {
-    final subs = await DatabaseHelper.instance.getSubjectsForBatch(
-      widget.batchId,
-    );
+    final subs = await DatabaseHelper.instance.getSubjectsForBatch(widget.batchId);
     setState(() => subjects = subs);
   }
 
@@ -72,9 +68,7 @@ class _ModifySchedulePageState extends State<ModifySchedulePage> {
       return lecturesForDate.where((l) => l['status'] == 'present').toList();
     } else if (selectedAction == 'Present') {
       return lecturesForDate.where((l) => l['status'] == 'absent').toList();
-    } else if (selectedAction == 'Canceled' ||
-        selectedAction == 'Lecture Switch') {
-      // Show all lectures, ignore status
+    } else if (selectedAction == 'Canceled' || selectedAction == 'Lecture Switch') {
       return List.from(lecturesForDate);
     }
     return [];
@@ -82,82 +76,53 @@ class _ModifySchedulePageState extends State<ModifySchedulePage> {
 
   void applyChanges() async {
     if (selectedDate == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Select a date")));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text("Select a date")));
       return;
     }
+
     final db = DatabaseHelper.instance;
     final dateStr = selectedDate!.toIso8601String().split('T')[0];
 
     switch (selectedAction) {
       case 'Absent':
-        // Update selected lecture rows to 'absent'
         for (var lectureId in selectedLectureIds) {
           await db.updateLectureStatus(lectureId, 'absent');
         }
         break;
-
       case 'Present':
-        // Update selected lecture rows to 'present'
         for (var lectureId in selectedLectureIds) {
           await db.updateLectureStatus(lectureId, 'present');
         }
         break;
-
       case 'Canceled':
-        // Delete selected lecture rows
         for (var lectureId in selectedLectureIds) {
           await db.deleteLecture(lectureId);
         }
         break;
-
       case 'Lecture Switch':
-        // Keep original behavior (cancel next lecture for subject and insert new lecture)
         if (switchFromSubject != null && switchToSubject != null) {
-          final lectures = await db.getLecturesForSubject(
-            widget.batchId,
-            switchFromSubject!,
-          );
-          final exists = lectures.any(
-            (l) => l['date'] == dateStr && l['status'] == 'present',
-          );
+          final lectures = await db.getLecturesForSubject(widget.batchId, switchFromSubject!);
+          final exists = lectures.any((l) =>
+              l['date'] == dateStr && l['status'] == 'present');
           if (exists) {
-            await db.cancelNextLecture(
-              widget.batchId,
-              switchFromSubject!,
-              dateStr,
-            );
-            await db.insertLecture(
-              widget.batchId,
-              switchToSubject!,
-              dateStr,
-              'present',
-            );
+            await db.cancelNextLecture(widget.batchId, switchFromSubject!, dateStr);
+            await db.insertLecture(widget.batchId, switchToSubject!, dateStr, 'present');
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Lecture to cancel does not exist")),
-            );
+                const SnackBar(content: Text("Lecture to cancel does not exist")));
           }
         }
         break;
-
       case 'Extra Lecture':
-        // Insert a new lecture for chosen subject on the selected date
         if (extraLectureSubject != null) {
-          await db.insertLecture(
-            widget.batchId,
-            extraLectureSubject!,
-            dateStr,
-            'present',
-          );
+          await db.insertLecture(widget.batchId, extraLectureSubject!, dateStr, 'present');
         }
         break;
     }
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("Changes applied")));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text("Changes applied")));
     Navigator.pop(context, true);
   }
 
@@ -166,7 +131,7 @@ class _ModifySchedulePageState extends State<ModifySchedulePage> {
     final filteredLectures = _filteredLecturesForAction();
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Modify Schedule")),
+      appBar: AppBar(title: const Text("Modify Schedule"), backgroundColor: Colors.indigo[700]),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -175,19 +140,9 @@ class _ModifySchedulePageState extends State<ModifySchedulePage> {
             // Action selector
             DropdownButtonFormField<String>(
               value: selectedAction,
-              items:
-                  [
-                        'Absent',
-                        'Present',
-                        'Canceled',
-                        'Lecture Switch',
-                        'Extra Lecture',
-                      ]
-                      .map(
-                        (e) =>
-                            DropdownMenuItem<String>(value: e, child: Text(e)),
-                      )
-                      .toList(),
+              items: ['Absent', 'Present', 'Canceled', 'Lecture Switch', 'Extra Lecture']
+                  .map((e) => DropdownMenuItem<String>(value: e, child: Text(e)))
+                  .toList(),
               onChanged: (val) {
                 setState(() {
                   selectedAction = val ?? 'Absent';
@@ -211,62 +166,71 @@ class _ModifySchedulePageState extends State<ModifySchedulePage> {
                 selectedDate == null
                     ? "Select Date"
                     : "Date: ${selectedDate!.toIso8601String().split('T')[0]}",
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
             ),
             const SizedBox(height: 12),
 
-            // Absent / Present / Canceled lectures — now select by lecture id
+            // Absent / Present / Canceled lectures
             if (selectedAction == 'Absent' ||
                 selectedAction == 'Present' ||
                 selectedAction == 'Canceled')
               Expanded(
                 child: filteredLectures.isEmpty
-                    ? const Center(
-                        child: Text("No lectures found for selected date"),
-                      )
+                    ? const Center(child: Text("No lectures found for selected date"))
                     : ListView(
                         children: filteredLectures.map((l) {
-                          final lectureId = (l['id'] is int)
-                              ? l['id'] as int
-                              : int.parse(l['id'].toString());
-                          final subjectName = l['subject'] as String;
+                          final lectureId = l['id'] as int;
                           final status = l['status'] as String? ?? '';
-                          return CheckboxListTile(
-                            title: Text(subjectName),
-                            subtitle: Text("Status: $status"),
-                            value: selectedLectureIds.contains(lectureId),
-                            onChanged: (val) {
-                              setState(() {
-                                if (val == true) {
-                                  selectedLectureIds.add(lectureId);
-                                } else {
-                                  selectedLectureIds.remove(lectureId);
-                                }
-                              });
-                            },
+                          final subjectName = l['subject'] as String;
+                          final isPresent = status.toLowerCase() == 'present';
+                          final statusColor =
+                              status.toLowerCase() == 'present' ? Colors.green : Colors.red;
+
+                          return Card(
+                            margin: const EdgeInsets.symmetric(vertical: 6),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                            elevation: 3,
+                            child: CheckboxListTile(
+                              title: Text(subjectName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                              subtitle: Text(
+                                "Status: ${status[0].toUpperCase()}${status.substring(1)}",
+                                style: TextStyle(color: statusColor),
+                              ),
+                              activeColor: statusColor,
+                              value: selectedLectureIds.contains(lectureId),
+                              onChanged: (val) {
+                                setState(() {
+                                  if (val == true) {
+                                    selectedLectureIds.add(lectureId);
+                                  } else {
+                                    selectedLectureIds.remove(lectureId);
+                                  }
+                                });
+                              },
+                            ),
                           );
                         }).toList(),
                       ),
               ),
 
-            // Lecture Switch -> dropdowns (cancel from present lectures, add from subjects)
+            // Lecture Switch
             if (selectedAction == 'Lecture Switch')
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text("Lecture to Cancel:"),
+                  const Text("Lecture to Cancel:", style: TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
                     value: switchFromSubject,
                     items: lecturesForDate
                         .map((l) => l['subject'] as String)
                         .toSet()
-                        .map(
-                          (subjectName) => DropdownMenuItem<String>(
-                            value: subjectName,
-                            child: Text(subjectName),
-                          ),
-                        )
+                        .map((subjectName) => DropdownMenuItem<String>(
+                              value: subjectName,
+                              child: Text(subjectName),
+                            ))
                         .toList(),
                     onChanged: (val) => setState(() => switchFromSubject = val),
                     decoration: const InputDecoration(
@@ -275,19 +239,17 @@ class _ModifySchedulePageState extends State<ModifySchedulePage> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  const Text("Lecture to Add:"),
+                  const Text("Lecture to Add:", style: TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
                     value: switchToSubject,
                     items: subjects
                         .map((s) => s['name'] as String)
                         .toSet()
-                        .map(
-                          (subjectName) => DropdownMenuItem<String>(
-                            value: subjectName,
-                            child: Text(subjectName),
-                          ),
-                        )
+                        .map((subjectName) => DropdownMenuItem<String>(
+                              value: subjectName,
+                              child: Text(subjectName),
+                            ))
                         .toList(),
                     onChanged: (val) => setState(() => switchToSubject = val),
                     decoration: const InputDecoration(
@@ -298,27 +260,24 @@ class _ModifySchedulePageState extends State<ModifySchedulePage> {
                 ],
               ),
 
-            // Extra Lecture -> dropdown (single selection)
+            // Extra Lecture
             if (selectedAction == 'Extra Lecture')
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text("Select Subject for Extra Lecture:"),
+                  const Text("Select Subject for Extra Lecture:", style: TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
                     value: extraLectureSubject,
                     items: subjects
                         .map((s) => s['name'] as String)
                         .toSet()
-                        .map(
-                          (subjectName) => DropdownMenuItem<String>(
-                            value: subjectName,
-                            child: Text(subjectName),
-                          ),
-                        )
+                        .map((subjectName) => DropdownMenuItem<String>(
+                              value: subjectName,
+                              child: Text(subjectName),
+                            ))
                         .toList(),
-                    onChanged: (val) =>
-                        setState(() => extraLectureSubject = val),
+                    onChanged: (val) => setState(() => extraLectureSubject = val),
                     decoration: const InputDecoration(
                       border: OutlineInputBorder(),
                       labelText: "Select Subject",
@@ -331,30 +290,16 @@ class _ModifySchedulePageState extends State<ModifySchedulePage> {
             Center(
               child: ElevatedButton(
                 onPressed: applyChanges,
-                child: const Text("Confirm"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                ),
+                child: const Text("Confirm", style: TextStyle(fontSize: 16)),
               ),
             ),
           ],
         ),
       ),
     );
-  }
-
-  // helper to get lectures for Lecture Switch cancel
-  Future<List<Map<String, dynamic>>> _getLecturesForSelectedDate([
-    String? status,
-  ]) async {
-    if (selectedDate == null) return [];
-    final dateStr = selectedDate!.toIso8601String().split('T')[0];
-    final lectures = await DatabaseHelper.instance.getLecturesForDate(
-      widget.batchId,
-      dateStr,
-    );
-
-    if (status == null || selectedAction == 'Lecture Switch') {
-      return List.from(lectures); // ignore status for Lecture Switch
-    }
-
-    return lectures.where((l) => l['status'] == status).toList();
   }
 }
