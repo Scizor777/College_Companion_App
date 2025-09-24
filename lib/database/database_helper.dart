@@ -209,6 +209,57 @@ class DatabaseHelper {
     _database = await _initDB('timetable.db');
   }
 
+  Future<int> deleteLecture(int lectureId) async {
+    final db = await instance.database;
+    return await db.delete('lecture', where: 'id = ?', whereArgs: [lectureId]);
+  }
+
+  // Update markNextLectureAbsent
+  Future<void> markNextLectureAbsent(int batchId, String subject, String date) async {
+    final db = await instance.database;
+    final lectures = await db.query(
+      'lecture',
+      where: 'batchId = ? AND subject = ? AND date = ? AND status = ?',
+      whereArgs: [batchId, subject, date, 'present'],
+      orderBy: 'id ASC',
+    );
+
+    if (lectures.isNotEmpty) {
+      await db.update(
+        'lecture',
+        {'status': 'absent'},
+        where: 'id = ?',
+        whereArgs: [lectures.first['id']],
+      );
+    }
+  }
+
+  Future<void> cancelNextLecture(int batchId, String subject, String date) async {
+    final db = await instance.database;
+    final lectures = await db.query(
+      'lecture',
+      where: 'batchId = ? AND subject = ? AND date = ? AND status = ?',
+      whereArgs: [batchId, subject, date, 'present'],
+      orderBy: 'id ASC',
+    );
+
+    if (lectures.isNotEmpty) {
+      await db.delete('lecture', where: 'id = ?', whereArgs: [lectures.first['id']]);
+    }
+  }
+
+  // Update lecture status by lecture ID
+  Future<int> updateLectureStatus(int lectureId, String newStatus) async {
+    final db = await instance.database;
+    return await db.update(
+      'lecture',
+      {'status': newStatus},
+      where: 'id = ?',
+      whereArgs: [lectureId],
+    );
+  }
+
+
   Future close() async {
     final db = await instance.database;
     db.close();
