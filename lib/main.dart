@@ -19,7 +19,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// ---------------- Home Page ----------------
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
   @override
@@ -38,7 +37,6 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadBatches() async {
     final batches = await DatabaseHelper.instance.getAllBatches();
 
-    // Auto-fill lectures for each batch
     for (var batch in batches) {
       await DatabaseHelper.instance.autoFillLectures(batch['id']);
     }
@@ -92,20 +90,24 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Attendance Dashboard')),
+      appBar: AppBar(
+        title: const Text('Attendance Dashboard'),
+        backgroundColor: Colors.indigo[700],
+      ),
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
             DrawerHeader(
-              decoration: BoxDecoration(color: Colors.blue),
-              child: Text(
+              decoration: const BoxDecoration(color: Colors.indigo),
+              child: const Text(
                 'Menu',
-                style: TextStyle(color: Colors.white, fontSize: 24),
+                style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold),
               ),
             ),
             ListTile(
-              title: Text("Add Schedule"),
+              title: const Text("Add Schedule"),
+              leading: const Icon(Icons.add),
               onTap: () async {
                 Navigator.pop(context);
                 final added = await Navigator.push(
@@ -118,7 +120,7 @@ class _HomePageState extends State<HomePage> {
             const Divider(),
             const Padding(
               padding: EdgeInsets.all(12.0),
-              child: Text("Saved Timetables", style: TextStyle(fontSize: 18)),
+              child: Text("Saved Timetables", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
             ),
             if (_batches.isEmpty)
               const Padding(
@@ -150,108 +152,132 @@ class _HomePageState extends State<HomePage> {
       body: _batches.isEmpty
           ? const Center(child: Text("No semesters added yet"))
           : ListView.builder(
+              padding: const EdgeInsets.all(12),
               itemCount: _batches.length,
               itemBuilder: (context, index) {
                 final batch = _batches[index];
                 return Card(
-                  margin: const EdgeInsets.all(12),
+                  elevation: 4,
+                  margin: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   child: Padding(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           "${batch['name']} - ${batch['className']}",
                           style: const TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold),
+                              fontSize: 20, fontWeight: FontWeight.bold, color: Colors.indigo),
                         ),
-                        const SizedBox(height: 8),
-
+                        const SizedBox(height: 12),
                         FutureBuilder<List<Map<String, dynamic>>>(
-                          future: DatabaseHelper.instance
-                              .getSubjectsForBatch(batch['id']),
+                          future: DatabaseHelper.instance.getSubjectsForBatch(batch['id']),
                           builder: (context, snapshot) {
                             if (!snapshot.hasData)
                               return const Center(child: CircularProgressIndicator());
 
-                            // Make subjects unique by name
                             var subjects = snapshot.data!;
-                            subjects = {
-                              for (var s in subjects) s['name']: s
-                            }.values.toList();
+                            subjects = {for (var s in subjects) s['name']: s}.values.toList();
                             if (subjects.isEmpty) return const Text("No subjects added");
 
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                FutureBuilder<List<double>>(
-                                  future: _calculateSubjectPercents(batch['id'], subjects),
-                                  builder: (context, snap) {
-                                    if (!snap.hasData) return const SizedBox();
-                                    final subjectPercents = snap.data!;
-                                    final avg = subjectPercents.isEmpty
-                                        ? 0.0
-                                        : subjectPercents.reduce((a, b) => a + b) /
-                                            subjectPercents.length;
+                            return FutureBuilder<List<double>>(
+                              future: _calculateSubjectPercents(batch['id'], subjects),
+                              builder: (context, snap) {
+                                if (!snap.hasData) return const SizedBox();
+                                final subjectPercents = snap.data!;
+                                return Column(
+                                  children: List.generate(subjects.length, (i) {
+                                    final sub = subjects[i];
+                                    final percent = subjectPercents[i];
+                                    Color percentColor;
+                                    if (percent >= 75) {
+                                      percentColor = Colors.green;
+                                    } else if (percent >= 50) {
+                                      percentColor = Colors.amber[700]!;
+                                    } else {
+                                      percentColor = Colors.red;
+                                    }
 
-                                    return Padding(
-                                      padding: const EdgeInsets.only(bottom: 8.0),
-                                      child: Text(
-                                        "Average Attendance: ${avg.toStringAsFixed(1)}%",
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.w600),
+                                    return GestureDetector(
+                                      onTap: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => SubjectDetailsPage(
+                                              batchId: batch['id'],
+                                              subjectName: sub['name'],
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      child: Container(
+                                        margin: const EdgeInsets.symmetric(vertical: 8),
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: Colors.indigo[50],
+                                          borderRadius: BorderRadius.circular(10),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.grey.withOpacity(0.2),
+                                              spreadRadius: 2,
+                                              blurRadius: 4,
+                                              offset: const Offset(2, 2),
+                                            )
+                                          ],
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            // Circular Percentage Indicator
+                                            Stack(
+                                              alignment: Alignment.center,
+                                              children: [
+                                                SizedBox(
+                                                  width: 50,
+                                                  height: 50,
+                                                  child: CircularProgressIndicator(
+                                                    value: percent / 100,
+                                                    backgroundColor: Colors.grey[300],
+                                                    valueColor: AlwaysStoppedAnimation<Color>(percentColor),
+                                                    strokeWidth: 6,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  "${percent.toStringAsFixed(0)}%",
+                                                  style: const TextStyle(
+                                                      fontSize: 12, fontWeight: FontWeight.bold),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(width: 16),
+                                            // Subject Name and some info
+                                            Expanded(
+                                              child: Text(
+                                                sub['name'],
+                                                style: const TextStyle(
+                                                    fontSize: 16, fontWeight: FontWeight.w600),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     );
-                                  },
-                                ),
-
-                                ...subjects.map((sub) {
-                                  return FutureBuilder<List<Map<String, dynamic>>>(
-                                    future: DatabaseHelper.instance
-                                        .getLecturesForSubject(batch['id'], sub['name']),
-                                    builder: (context, snap) {
-                                      if (!snap.hasData) return const SizedBox();
-                                      final lectures = snap.data!;
-                                      final percent = calculateAttendancePercent(lectures);
-
-                                      return ListTile(
-                                        title: Text(sub['name']),
-                                        subtitle: Text(
-                                            "Attendance: ${percent.toStringAsFixed(1)}%"),
-                                        trailing: ElevatedButton(
-                                          onPressed: () {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) => SubjectDetailsPage(
-                                                    batchId: batch['id'],
-                                                    subjectName: sub['name']),
-                                              ),
-                                            );
-                                          },
-                                          child: const Text("Details"),
-                                        ),
-                                      );
-                                    },
-                                  );
-                                }).toList(),
-                              ],
+                                  }),
+                                );
+                              },
                             );
                           },
                         ),
-                        const Divider(),
+                        const Divider(height: 20),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
                             ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red,
-                              ),
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                               onPressed: () async {
                                 bool confirmed = await _confirmStopSemester();
                                 if (confirmed) {
-                                  await DatabaseHelper.instance
-                                      .stopSemester(batch['id']);
+                                  await DatabaseHelper.instance.stopSemester(batch['id']);
                                   _loadBatches();
                                 }
                               },
@@ -259,18 +285,14 @@ class _HomePageState extends State<HomePage> {
                             ),
                             const SizedBox(width: 10),
                             ElevatedButton(
-                              onPressed:  () async{
+                              onPressed: () async {
                                 final updated = await Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) => ModifySchedulePage(batchId: batch['id']),
                                   ),
                                 );
-
-                                if (updated == true) {
-                                  _loadBatches(); // Refresh to update attendance %
-                                }
-
+                                if (updated == true) _loadBatches();
                               },
                               child: const Text("Make Changes"),
                             ),
@@ -285,6 +307,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
+
 
 
 // ---------------- Add Schedule Form ----------------
