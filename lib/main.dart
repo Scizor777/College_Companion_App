@@ -259,14 +259,18 @@ class _HomePageState extends State<HomePage> {
                             ),
                             const SizedBox(width: 10),
                             ElevatedButton(
-                              onPressed: () {
-                                Navigator.push(
+                              onPressed:  () async{
+                                final updated = await Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) =>
-                                        ModifySchedulePage(batchId: batch['id']),
+                                    builder: (_) => ModifySchedulePage(batchId: batch['id']),
                                   ),
                                 );
+
+                                if (updated == true) {
+                                  _loadBatches(); // Refresh to update attendance %
+                                }
+
                               },
                               child: const Text("Make Changes"),
                             ),

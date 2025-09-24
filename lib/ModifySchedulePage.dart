@@ -126,7 +126,7 @@ class _ModifySchedulePageState extends State<ModifySchedulePage> {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Changes applied")));
-    Navigator.pop(context);
+    Navigator.pop(context,true);
   }
 
   @override
