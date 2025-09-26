@@ -102,18 +102,29 @@ class _ModifySchedulePageState extends State<ModifySchedulePage> {
         break;
       case 'Lecture Switch':
         if (switchFromSubject != null && switchToSubject != null) {
-          final lectures = await db.getLecturesForSubject(widget.batchId, switchFromSubject!);
-          final exists = lectures.any((l) =>
-              l['date'] == dateStr && l['status'] == 'present');
-          if (exists) {
-            await db.cancelNextLecture(widget.batchId, switchFromSubject!, dateStr);
-            await db.insertLecture(widget.batchId, switchToSubject!, dateStr, 'present');
+          final lectures = await db.getLecturesForDate(widget.batchId, dateStr);
+          // Find the lecture to cancel for the chosen subject
+          final lectureToCancel = lectures.firstWhere(
+            (l) => l['subject'] == switchFromSubject,
+            orElse: () => {},
+          );
+
+          if (lectureToCancel.isNotEmpty) {
+            await db.deleteLecture(lectureToCancel['id'] as int);
+            await db.insertLecture(
+              widget.batchId,
+              switchToSubject!,
+              dateStr,
+              'present',
+            );
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Lecture to cancel does not exist")));
+              const SnackBar(content: Text("Lecture to cancel does not exist")),
+            );
           }
         }
         break;
+
       case 'Extra Lecture':
         if (extraLectureSubject != null) {
           await db.insertLecture(widget.batchId, extraLectureSubject!, dateStr, 'present');
@@ -183,7 +194,6 @@ class _ModifySchedulePageState extends State<ModifySchedulePage> {
                           final lectureId = l['id'] as int;
                           final status = l['status'] as String? ?? '';
                           final subjectName = l['subject'] as String;
-                          final isPresent = status.toLowerCase() == 'present';
                           final statusColor =
                               status.toLowerCase() == 'present' ? Colors.green : Colors.red;
 
