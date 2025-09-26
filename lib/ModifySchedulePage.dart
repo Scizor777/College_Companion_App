@@ -88,16 +88,20 @@ class _ModifySchedulePageState extends State<ModifySchedulePage> {
       case 'Absent':
         for (var lectureId in selectedLectureIds) {
           await db.updateLectureStatus(lectureId, 'absent');
+          print(lectureId);
         }
+        
         break;
       case 'Present':
         for (var lectureId in selectedLectureIds) {
           await db.updateLectureStatus(lectureId, 'present');
+          print(lectureId);
         }
         break;
       case 'Canceled':
         for (var lectureId in selectedLectureIds) {
           await db.deleteLecture(lectureId);
+          print(lectureId);
         }
         break;
       case 'Lecture Switch':

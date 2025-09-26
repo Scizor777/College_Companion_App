@@ -127,7 +127,6 @@ class DatabaseHelper {
     );
   }
 
-  // ------------------- Auto-fill lectures -------------------
   Future<void> autoFillLectures(int batchId) async {
     final db = await instance.database;
 
@@ -137,18 +136,29 @@ class DatabaseHelper {
     final batch = batchList.first;
     if (batch['isActive'] == 0) return; // skip inactive batch
 
+    DateTime startDate = DateTime.parse(batch['startDate'] as String);
     DateTime lastDate = DateTime.parse(batch['lastDate'] as String);
     DateTime today = DateTime.now();
 
-    if (lastDate.isAfter(today)) return; // only skip if lastDate > today
+    if (lastDate.isAfter(today)) return;
 
     // Get subjects
     final subjects = await db.query('subject', where: 'batchId = ?', whereArgs: [batchId]);
 
     try {
-      DateTime current = lastDate; // start from lastDate itself
+      // Determine the starting point
+      DateTime current;
+      if (lastDate.isAtSameMomentAs(startDate)) {
+        // Special case: first run, include startDate
+        current = startDate;
+      } else {
+        // Normal run: start from day after lastDate
+        current = lastDate.add(const Duration(days: 1));
+      }
+
       while (!current.isAfter(today)) {
         String dayOfWeek = _dayName(current.weekday);
+
         for (var sub in subjects) {
           if (sub['dayOfWeek'] == dayOfWeek) {
             // Check if lecture already exists
@@ -157,12 +167,14 @@ class DatabaseHelper {
               where: 'batchId = ? AND subject = ? AND date = ?',
               whereArgs: [batchId, sub['name'], current.toIso8601String().split('T')[0]],
             );
+
             if (existing.isEmpty) {
               await insertLecture(batchId, sub['name'] as String,
                   current.toIso8601String().split('T')[0], 'present');
             }
           }
         }
+
         current = current.add(const Duration(days: 1));
       }
 
@@ -177,6 +189,7 @@ class DatabaseHelper {
       print("Error while auto-filling lectures: $e");
     }
   }
+
 
 
   // ------------------- Helpers -------------------
